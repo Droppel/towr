@@ -57,6 +57,9 @@ TowrRosInterface::TowrRosInterface ()
   robot_parameters_pub_  = n.advertise<xpp_msgs::RobotParameters>
                                     (xpp_msgs::robot_parameters, 1);
 
+  robot_trajectory_pub_ = n.advertise<xpp_msgs::RobotStateCartesianTrajectory>
+                                    (xpp_msgs::robot_trajectory_desired, 1);
+
   solver_ = std::make_shared<ifopt::IpoptSolver>();
 
   visualization_dt_ = 0.01;
@@ -77,6 +80,8 @@ TowrRosInterface::GetGoalState(const TowrCommandMsg& msg) const
 void
 TowrRosInterface::UserCommandCallback(const TowrCommandMsg& msg)
 {
+  bool use_cache = msg.use_cache;
+
   // robot model
   formulation_.model_ = RobotModel(static_cast<RobotModel::Robot>(msg.robot));
   auto robot_params_msg = BuildRobotParametersMsg(formulation_.model_);
@@ -98,9 +103,20 @@ TowrRosInterface::UserCommandCallback(const TowrCommandMsg& msg)
   // visualization
   PublishInitialState();
 
+
   // Defaults to /home/user/.ros/
   std::string bag_file = "towr_trajectory.bag";
-  if (msg.optimize || msg.play_initialization) {
+  if (msg.optimize && use_cache) {
+    std::string filename = GetFileName(msg);
+    int exists = system(("test -f " + filename).c_str());
+    if (exists == 0) {
+      int success = system(("cp " + filename + " " + bag_file).c_str());
+    } else {
+      use_cache = false;
+    }
+  }
+
+  if ((msg.optimize && !use_cache) || msg.play_initialization) {
     nlp_ = ifopt::Problem();
     for (auto c : formulation_.GetVariableSets(solution))
       nlp_.AddVariableSet(c);
@@ -111,6 +127,8 @@ TowrRosInterface::UserCommandCallback(const TowrCommandMsg& msg)
 
     solver_->Solve(nlp_);
     SaveOptimizationAsRosbag(bag_file, robot_params_msg, msg, false);
+    xpp_msgs::RobotStateCartesianTrajectory trajectory_msg = xpp::Convert::ToRos(GetTrajectory());
+    robot_trajectory_pub_.publish(trajectory_msg);
   }
 
   // playback using terminal commands
@@ -126,8 +144,23 @@ TowrRosInterface::UserCommandCallback(const TowrCommandMsg& msg)
     int success = system(("killall rqt_bag; rqt_bag " + bag_file + "&").c_str());
   }
 
-  // to publish entire trajectory (e.g. to send to controller)
-  // xpp_msgs::RobotStateCartesianTrajectory xpp_msg = xpp::Convert::ToRos(GetTrajectory());
+  if (msg.save_last_trajectory) {
+    int success = system(("cp " + bag_file + " " + GetFileName(msg)).c_str());
+  }
+}
+
+std::string TowrRosInterface::GetFileName(const TowrCommandMsg& msg) {
+    std::string filename = robot_names.at(static_cast<RobotModel::Robot>(msg.robot)).c_str(); 
+    filename.append(std::to_string(msg.gait).c_str());
+    if (msg.optimize_phase_durations) {
+      filename += "On";
+    } else {
+      filename += "Off";
+    }
+    filename.append(terrain_names.at(static_cast<HeightMap::TerrainID>(msg.terrain)).c_str());
+    filename.append(std::to_string(msg.total_duration));
+    filename.append(".bag");
+    return filename;
 }
 
 void

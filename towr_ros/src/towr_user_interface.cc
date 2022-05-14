@@ -45,7 +45,7 @@ namespace towr {
 
 enum YCursorRows {HEADING=6, OPTIMIZE=8, VISUALIZE, INITIALIZATION, PLOT,
                   REPLAY_SPEED, GOAL_POS, GOAL_ORI, ROBOT,
-                  GAIT, OPTIMIZE_GAIT, TERRAIN, DURATION, CLOSE, END};
+                  GAIT, OPTIMIZE_GAIT, TERRAIN, DURATION, CACHE, SAVE, CLOSE, END};
 static constexpr int Y_STATUS      = END+1;
 static constexpr int X_KEY         = 1;
 static constexpr int X_DESCRIPTION = 10;
@@ -67,7 +67,7 @@ TowrUserInterface::TowrUserInterface ()
   goal_geom_.lin.p_ << 2.1, 0.0, 0.0;
   goal_geom_.ang.p_ << 0.0, 0.0, 0.0; // roll, pitch, yaw angle applied Z->Y'->X''
 
-  robot_      = RobotModel::Monoped;
+  robot_      = RobotModel::Hyq;
   terrain_    = HeightMap::FlatID;
   gait_combo_ = GaitGenerator::C0;
   total_duration_ = 2.4;
@@ -77,6 +77,8 @@ TowrUserInterface::TowrUserInterface ()
   optimize_ = false;
   publish_optimized_trajectory_ = false;
   optimize_phase_durations_ = false;
+  save_last_trajectory_ = false;
+  use_cache_ = true;
 
   PrintScreen();
 }
@@ -177,6 +179,20 @@ TowrUserInterface::PrintScreen() const
   wmove(stdscr, DURATION, X_VALUE);
   printw("%.2f [s]", total_duration_);
 
+  wmove(stdscr, CACHE, X_KEY);
+  printw("c");
+  wmove(stdscr, CACHE, X_DESCRIPTION);
+  printw("Use cache");
+  wmove(stdscr, CACHE, X_VALUE);
+  use_cache_? printw("On\n") : printw("off\n");
+
+  wmove(stdscr, SAVE, X_KEY);
+  printw("s");
+  wmove(stdscr, SAVE, X_DESCRIPTION);
+  printw("Save last trajectory");
+  wmove(stdscr, SAVE, X_VALUE);
+  printw("-");
+
   wmove(stdscr, CLOSE, X_KEY);
   printw("q");
   wmove(stdscr, CLOSE, X_DESCRIPTION);
@@ -260,6 +276,9 @@ TowrUserInterface::CallbackKey (int c)
     case 'y':
       optimize_phase_durations_ = !optimize_phase_durations_;
       break;
+    case 'c':
+      use_cache_ = !use_cache_;
+      break;
 
 
     case 'o':
@@ -282,6 +301,11 @@ TowrUserInterface::CallbackKey (int c)
       wmove(stdscr, Y_STATUS, 0);
       printw("In rqt_bag: right-click on xpp/state_des -> View -> Plot.\n"
              "Then expand the values you wish to plot on the right\n");
+      break;
+    case 's':
+      save_last_trajectory_ = true;
+      wmove(stdscr, Y_STATUS, 0);
+      printw("Saved last trajectory");
       break;
     case 'q':
       printw("Closing user interface\n");
@@ -308,6 +332,8 @@ void TowrUserInterface::PublishCommand()
   msg.robot                    = robot_;
   msg.optimize_phase_durations = optimize_phase_durations_;
   msg.plot_trajectory          = plot_trajectory_;
+  msg.save_last_trajectory     = save_last_trajectory_;
+  msg.use_cache                = use_cache_;
 
   user_command_pub_.publish(msg);
 
@@ -318,6 +344,7 @@ void TowrUserInterface::PublishCommand()
   plot_trajectory_ = false;
   play_initialization_ = false;
   publish_optimized_trajectory_ = false;
+  save_last_trajectory_ = false;
 }
 
 int TowrUserInterface::AdvanceCircularBuffer(int& curr, int max) const

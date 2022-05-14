@@ -67,10 +67,12 @@ struct RobotModel {
    * See folder: \ref include/towr/models/examples for more information.
    * @ingroup Robots
    */
-  enum Robot { Monoped, ///< one-legged hopper
-               Biped,   ///< two-legged
+  enum Robot { 
+               //Monoped, ///< one-legged hopper
+               //Biped,   ///< two-legged
                Hyq,     ///< four-legged robot from IIT
-               Anymal,  ///< four-legged robot from Anybotics
+               //Anymal,  ///< four-legged robot from Anybotics
+               AlienGo,
                ROBOT_COUNT };
 
 
@@ -84,10 +86,11 @@ struct RobotModel {
 
 const static std::map<RobotModel::Robot, std::string> robot_names =
 {
-  {RobotModel::Monoped, "Monoped"},
-  {RobotModel::Biped,   "Biped"},
+  //{RobotModel::Monoped, "Monoped"},
+  //{RobotModel::Biped,   "Biped"},
   {RobotModel::Hyq,     "Hyq"},
-  {RobotModel::Anymal,  "Anymal"}
+  //{RobotModel::Anymal,  "Anymal"},
+  {RobotModel::AlienGo,  "AlienGo"}
 };
 
 } /* namespace towr */
